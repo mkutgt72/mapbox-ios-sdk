@@ -1152,7 +1152,7 @@
 {
     if (self.userTrackingMode != RMUserTrackingModeNone && ! CGPointEqualToPoint(pivot, [self coordinateToPixel:self.userLocation.location.coordinate]))
         self.userTrackingMode = RMUserTrackingModeNone;
-    
+
     // Calculate rounded zoom
     float newZoom = fmin(ceilf([self zoom]) + 1.0, [self maxZoom]);
 
@@ -1456,7 +1456,7 @@
 
     if (self.userTrackingMode != RMUserTrackingModeNone && wasUserAction)
         self.userTrackingMode = RMUserTrackingModeNone;
-    
+
     [self correctPositionOfAllAnnotations];
 
     if (_zoom < 3 && self.userTrackingMode == RMUserTrackingModeFollowWithHeading)
@@ -1901,6 +1901,12 @@
 
             if (RMPreVersion7)
                 _currentCallout.backgroundView = [SMCalloutBackgroundView systemBackgroundView];
+
+            // If a custom contentView was assigned to the marker then we would assigned that to contentView of _currentCallout.
+            // By this assignment title/subtitle/titleView/subtitleView are all ignored and custom content view will be used.
+            if ([anAnnotation.layer isKindOfClass:[RMMarker class]] && ((RMMarker *)anAnnotation.layer).contentView) {
+                _currentCallout.contentView = ((RMMarker *)anAnnotation.layer).contentView;
+            }
 
             if (RMPostVersion7)
                 _currentCallout.tintColor = self.tintColor;
@@ -3766,7 +3772,7 @@
 - (void)setViewControllerPresentingAttribution:(UIViewController *)viewController
 {
     _viewControllerPresentingAttribution = viewController;
-    
+
     if (_viewControllerPresentingAttribution && ! _attributionButton)
     {
         _attributionButton = [UIButton buttonWithType:UIButtonTypeInfoLight];
