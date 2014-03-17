@@ -1899,6 +1899,8 @@
     }
     else if (anAnnotation.isEnabled && ! [anAnnotation isEqual:_currentAnnotation])
     {
+        self.userTrackingMode = RMUserTrackingModeNone;
+
         [self deselectAnnotation:_currentAnnotation animated:NO];
 
         _currentAnnotation = anAnnotation;
@@ -2639,10 +2641,12 @@
         _logoBug.autoresizingMask = UIViewAutoresizingFlexibleTopMargin | UIViewAutoresizingFlexibleRightMargin;
         _logoBug.translatesAutoresizingMaskIntoConstraints = NO;
         [self addSubview:_logoBug];
+        [self updateConstraints];
     }
     else if ( ! showLogoBug && _logoBug)
     {
         [_logoBug removeFromSuperview];
+        _logoBug = nil;
     }
 
     _showLogoBug = showLogoBug;
@@ -3137,6 +3141,9 @@
 
 - (void)addAnnotation:(RMAnnotation *)annotation
 {
+    if ( ! annotation)
+        return;
+
     @synchronized (_annotations)
     {
         if ([_annotations containsObject:annotation])
@@ -3169,6 +3176,9 @@
 
 - (void)addAnnotations:(NSArray *)newAnnotations
 {
+    if ( ! newAnnotations || ! [newAnnotations count])
+        return;
+
     @synchronized (_annotations)
     {
         [_annotations addObjectsFromArray:newAnnotations];
@@ -3792,10 +3802,12 @@
                                               _attributionButton.bounds.size.width,
                                               _attributionButton.bounds.size.height);
         [self addSubview:_attributionButton];
+        [self updateConstraints];
     }
     else if ( ! _viewControllerPresentingAttribution && _attributionButton)
     {
         [_attributionButton removeFromSuperview];
+        _attributionButton = nil;
     }
 }
 
