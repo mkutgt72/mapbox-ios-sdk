@@ -353,6 +353,11 @@
     [self setNeedsUpdateConstraints];
 }
 
+- (id)initWithCoder:(NSCoder *)decoder{
+    self = [super initWithCoder:decoder];
+    return [self initWithFrame: [self frame] andTilesource:[RMMapboxSource new]];
+}
+
 - (id)initWithFrame:(CGRect)frame
 {
     return [self initWithFrame:frame andTilesource:[RMMapboxSource new]];
@@ -500,7 +505,10 @@
     // just stick with the initial frames.
     //
     if ( ! viewController)
+    {
+        [super updateConstraints];
         return;
+    }
 
     // compass
     //
