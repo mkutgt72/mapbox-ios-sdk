@@ -131,8 +131,6 @@
 
 @implementation RMMapView
 {
-    id <RMMapViewDelegate> _delegate;
-
     BOOL _delegateHasBeforeMapMove;
     BOOL _delegateHasAfterMapMove;
     BOOL _delegateHasBeforeMapZoom;
@@ -197,7 +195,7 @@
 
     RMUserTrackingBarButtonItem *_userTrackingBarButtonItem;
 
-    UIViewController *_viewControllerPresentingAttribution;
+    __weak UIViewController *_viewControllerPresentingAttribution;
     UIButton *_attributionButton;
     UIPopoverController *_attributionPopover;
 
@@ -660,11 +658,6 @@
 #pragma mark -
 #pragma mark Delegate
 
-- (id <RMMapViewDelegate>)delegate
-{
-	return _delegate;
-}
-
 - (void)setDelegate:(id <RMMapViewDelegate>)aDelegate
 {
     if (_delegate == aDelegate)
@@ -715,12 +708,16 @@
     {
         BOOL flag = wasUserEvent;
 
+        __weak RMMapView *weakSelf = self;
+        BOOL hasBeforeMapMove = _delegateHasBeforeMapMove;
+        BOOL hasAfterMapMove  = _delegateHasAfterMapMove;
+
         if ([_moveDelegateQueue operationCount] == 0)
         {
             dispatch_async(dispatch_get_main_queue(), ^(void)
             {
-                if (_delegateHasBeforeMapMove)
-                    [_delegate beforeMapMove:self byUser:flag];
+                if (hasBeforeMapMove)
+                    [_delegate beforeMapMove:weakSelf byUser:flag];
             });
         }
 
@@ -732,8 +729,8 @@
             {
                 dispatch_async(dispatch_get_main_queue(), ^(void)
                 {
-                    if (_delegateHasAfterMapMove)
-                        [_delegate afterMapMove:self byUser:flag];
+                    if (hasAfterMapMove)
+                        [_delegate afterMapMove:weakSelf byUser:flag];
                 });
             }];
         }
@@ -754,12 +751,16 @@
     {
         BOOL flag = wasUserEvent;
 
+        __weak RMMapView *weakSelf = self;
+        BOOL hasBeforeMapZoom = _delegateHasBeforeMapZoom;
+        BOOL hasAfterMapZoom  = _delegateHasAfterMapZoom;
+
         if ([_zoomDelegateQueue operationCount] == 0)
         {
             dispatch_async(dispatch_get_main_queue(), ^(void)
             {
-                if (_delegateHasBeforeMapZoom)
-                    [_delegate beforeMapZoom:self byUser:flag];
+                if (hasBeforeMapZoom)
+                    [_delegate beforeMapZoom:weakSelf byUser:flag];
             });
         }
 
@@ -771,8 +772,8 @@
             {
                 dispatch_async(dispatch_get_main_queue(), ^(void)
                 {
-                    if (_delegateHasAfterMapZoom)
-                        [_delegate afterMapZoom:self byUser:flag];
+                    if (hasAfterMapZoom)
+                        [_delegate afterMapZoom:weakSelf byUser:flag];
                 });
             }];
         }
@@ -1075,17 +1076,27 @@
 
 - (void)setZoom:(float)newZoom atCoordinate:(CLLocationCoordinate2D)newCenter animated:(BOOL)animated
 {
-    [UIView animateWithDuration:(animated ? 0.3 : 0.0)
-                          delay:0.0
-                        options:UIViewAnimationOptionBeginFromCurrentState | UIViewAnimationCurveEaseInOut
-                     animations:^(void)
-                     {
-                         [self setZoom:newZoom];
-                         [self setCenterCoordinate:newCenter animated:NO];
+    if (animated)
+    {
+        [UIView animateWithDuration:0.3
+                              delay:0.0
+                            options:UIViewAnimationOptionBeginFromCurrentState | UIViewAnimationCurveEaseInOut
+                         animations:^(void)
+                         {
+                             [self setZoom:newZoom];
+                             [self setCenterCoordinate:newCenter animated:NO];
 
-                         self.userTrackingMode = RMUserTrackingModeNone;
-                     }
-                     completion:nil];
+                             self.userTrackingMode = RMUserTrackingModeNone;
+                         }
+                         completion:nil];
+    }
+    else
+    {
+        [self setZoom:newZoom];
+        [self setCenterCoordinate:newCenter animated:NO];
+
+        self.userTrackingMode = RMUserTrackingModeNone;
+    }
 }
 
 - (void)zoomByFactor:(float)zoomFactor near:(CGPoint)pivot animated:(BOOL)animated
@@ -1600,21 +1611,6 @@
     {
         [self correctPositionOfAllAnnotationsIncludingInvisibles:NO animated:(_mapScrollViewIsZooming && !_mapScrollView.zooming)];
 
-        if (_currentAnnotation && ! [_currentAnnotation isKindOfClass:[RMMarker class]])
-        {
-            // adjust shape annotation callouts for frame changes during zoom
-            //
-            _currentCallout.delegate = nil;
-
-            [_currentCallout presentCalloutFromRect:_currentAnnotation.layer.bounds
-                                            inLayer:_currentAnnotation.layer
-                                 constrainedToLayer:self.layer
-                           permittedArrowDirections:SMCalloutArrowDirectionDown
-                                           animated:NO];
-
-            _currentCallout.delegate = self;
-        }
-
         _lastZoom = _zoom;
     }
 
@@ -1838,13 +1834,13 @@
             _draggedAnnotation = nil;
         }
     }
-    else if ([hit isKindOfClass:[RMMapLayer class]] && _delegateHasLongPressOnAnnotation)
+    else if (recognizer.state == UIGestureRecognizerStateBegan && [hit isKindOfClass:[RMMapLayer class]] && _delegateHasLongPressOnAnnotation)
     {
         // pass annotation long-press to delegate
         //
         [_delegate longPressOnAnnotation:[((RMMapLayer *)hit) annotation] onMap:self];
     }
-    else if (_delegateHasLongPressOnMap)
+    else if (recognizer.state == UIGestureRecognizerStateBegan && _delegateHasLongPressOnMap)
     {
         // pass map long-press to delegate
         //
@@ -1907,10 +1903,7 @@
 
         if (anAnnotation.layer.canShowCallout && anAnnotation.title)
         {
-            _currentCallout = [SMCalloutView new];
-
-            if (RMPreVersion7)
-                _currentCallout.backgroundView = [SMCalloutBackgroundView systemBackgroundView];
+            _currentCallout = [SMCalloutView platformCalloutView];
 
             // If a custom contentView was assigned to the marker then we would assigned that to contentView of _currentCallout.
             // By this assignment title/subtitle/titleView/subtitleView are all ignored and custom content view will be used.
@@ -1944,10 +1937,11 @@
 
             _currentCallout.delegate = self;
 
+            _currentCallout.permittedArrowDirection = SMCalloutArrowDirectionDown;
+
             [_currentCallout presentCalloutFromRect:anAnnotation.layer.bounds
                                             inLayer:anAnnotation.layer
                                  constrainedToLayer:self.layer
-                           permittedArrowDirections:SMCalloutArrowDirectionDown
                                            animated:animated];
         }
 
